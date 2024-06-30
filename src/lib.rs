@@ -12,25 +12,33 @@ mod vga_buffer;
 extern crate bitflags;
 extern crate multiboot2;
 
+use multiboot2::{BootInformation, BootInformationHeader, ElfSectionFlags};
+
 use crate::memory::frame::FrameAllocator;
 use core::arch::asm;
 use core::panic::PanicInfo;
+use core::sync::atomic::{AtomicUsize, Ordering};
+use lazy_static::lazy_static;
 
-use multiboot2::{BootInformationHeader, ElfSectionFlags};
+lazy_static! {
+    static ref MULTIBOOT = unsafe {
+        BootInformation::load(MULTIBOOT_START.load(Ordering::SeqCst) as *const BootInformationHeader)
+    };
+}
+
+static MULTIBOOT_START: AtomicUsize = AtomicUsize::new(0);
 
 #[no_mangle]
-pub extern "C" fn kernel_main(multiboot_header_address: usize) {
-    let boot_info = unsafe {
-        multiboot2::BootInformation::load(multiboot_header_address as *const BootInformationHeader)
-            .unwrap()
-    };
+pub extern "C" fn kernel_main(multiboot_start: usize) {
+    MULTIBOOT_START.store(multiboot_start, Ordering::SeqCst);
 
-    let our_boot_info = unsafe { memory::multiboot::load(multiboot_header_address) };
+    // let boot_info = unsafe {
+    //     multiboot2::BootInformation::load(multiboot_header_address as *const BootInformationHeader)
+    //         .unwrap()
+    // };
 
-    let memory_map_tag = our_boot_info
-        .memory_map_tag()
-        .expect("Memory map tag required");
-    let elf_sections_tag = boot_info.elf_sections().expect("Elf-sections tag required");
+    let memory_map_tag = MULTIBOOT.memory_map_tag().expect("Memory map tag required");
+    let elf_sections_tag = MULTIBOOT.elf_sections().expect("Elf-sections tag required");
 
     vga_buffer::WRITER.lock().clear_vga_buffer();
     shell::SHELL.lock().init();
@@ -39,7 +47,8 @@ pub extern "C" fn kernel_main(multiboot_header_address: usize) {
     for area in memory_map_tag.memory_areas() {
         println!(
             "     start: 0x{:x}, length: 0x{:x}",
-            area.base_addr, area.length
+            area.start_address(),
+            area.size()
         );
     }
 
