@@ -1,6 +1,8 @@
-use multiboot2::MemoryArea;
-
-use super::{paging::PhysicalAddress, PAGE_SIZE};
+use super::{
+    multiboot::memory_map::{MemoryArea, MemoryAreaIter},
+    paging::PhysicalAddress,
+    PAGE_SIZE,
+};
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Frame {
@@ -27,7 +29,7 @@ pub trait FrameAllocator {
 pub struct AreaFrameAllocator {
     next_free_frame: Frame,
     current_area: Option<&'static MemoryArea>,
-    areas: &'static [MemoryArea],
+    areas: MemoryAreaIter,
     kernel_start: Frame,
     kernel_end: Frame,
     multiboot_start: Frame,
@@ -45,7 +47,7 @@ impl FrameAllocator for AreaFrameAllocator {
 
             // the last frame of the current area
             let current_area_last_frame = {
-                let address = area.start_address() + area.size() - 1;
+                let address = area.base_addr + area.length - 1;
                 Frame::containing_address(address as usize)
             };
 
@@ -80,14 +82,32 @@ impl FrameAllocator for AreaFrameAllocator {
 }
 
 impl AreaFrameAllocator {
+    fn choose_next_area(&mut self) {
+        self.current_area = self
+            .areas
+            .clone()
+            .filter(|area| {
+                let address = area.base_addr + area.length - 1;
+                Frame::containing_address(address as usize) >= self.next_free_frame
+            })
+            .min_by_key(|area| area.base_addr);
+
+        if let Some(area) = self.current_area {
+            let start_frame = Frame::containing_address(area.base_addr as usize);
+            if self.next_free_frame < start_frame {
+                self.next_free_frame = start_frame;
+            }
+        }
+    }
+
     pub fn new(
         kernel_start: usize,
         kernel_end: usize,
         multiboot_start: usize,
         multiboot_end: usize,
-        memory_areas: &'static [MemoryArea],
-    ) -> Self {
-        let mut allocator = Self {
+        memory_areas: MemoryAreaIter,
+    ) -> AreaFrameAllocator {
+        let mut allocator = AreaFrameAllocator {
             next_free_frame: Frame::containing_address(0),
             current_area: None,
             areas: memory_areas,
@@ -98,24 +118,5 @@ impl AreaFrameAllocator {
         };
         allocator.choose_next_area();
         allocator
-    }
-
-    fn choose_next_area(&mut self) {
-        self.current_area = self
-            .areas
-            .clone()
-            .iter()
-            .filter(|area| {
-                let address = area.start_address() + area.size() - 1;
-                Frame::containing_address(address as usize) >= self.next_free_frame
-            })
-            .min_by_key(|area| area.start_address());
-
-        if let Some(area) = self.current_area {
-            let start_frame = Frame::containing_address(area.start_address() as usize);
-            if self.next_free_frame < start_frame {
-                self.next_free_frame = start_frame;
-            }
-        }
     }
 }
