@@ -29,11 +29,12 @@
 
 ## todo
 
-### kfs4
+### present
 
--   [ ] mouse (scroll)
+-   [ ] bring back `enable_paging` from old x86_64 code
+-   [ ] bring back `setup_page_tables` from old x86_64 code and adapt it to 32-bit
 
-### later
+### future
 
 -   [ ] find project name and rebrand
 -   [ ] optimize vga history with a ring buffer
@@ -52,6 +53,7 @@
 -   [ ] finish 1st edition
 -   [ ] remove stack segments
 -   [ ] separate user and kernel stacks
+-   [ ] mouse (scroll history)
 
 ## check before each push
 
@@ -72,6 +74,7 @@
 -   https://samypesse.gitbook.io/how-to-create-an-operating-system
 -   https://www.gnu.org/software/grub/manual/multiboot2/multiboot.pdf
 -   https://nfil.dev/categories/#kernel
+-   https://conradludgate.com/posts/async
 -   `#os-dev`: https://discord.com/channels/273534239310479360/375706574133526529
 
 ## artistic direction

@@ -1,5 +1,6 @@
-global gdt_start, gdt_pointer, stack_bottom, stack_top, start
+global kernel_code, gdt_start, gdt_pointer, stack_bottom, stack_top, start
 extern check_cpuid, check_multiboot, kernel_main, error
+
 
 section .text
 bits 32
@@ -92,10 +93,10 @@ kernel_code: equ $ - gdt_start
     DEFINE_GDT_SEGMENT 0b10011011
 kernel_data: equ $ - gdt_start
     DEFINE_GDT_SEGMENT 0b10010011
-user_code: equ $ - gdt_start
-    DEFINE_GDT_SEGMENT 0b11111011
-user_data: equ $ - gdt_start
-    DEFINE_GDT_SEGMENT 0b11110011
+; user_code: equ $ - gdt_start
+;     DEFINE_GDT_SEGMENT 0b11111011
+; user_data: equ $ - gdt_start
+;     DEFINE_GDT_SEGMENT 0b11110011
 gdt_pointer:
     dw $ - gdt_start - 1
     dd gdt_start
