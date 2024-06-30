@@ -9,6 +9,7 @@
 #[macro_use]
 mod vga_buffer;
 
+mod instructions;
 mod interrupts;
 mod keyboard;
 mod memory;
@@ -19,6 +20,7 @@ mod shell;
 #[macro_use]
 extern crate bitflags;
 
+use crate::memory::paging::remap_the_kernel;
 use crate::multiboot::{ElfSectionFlags, MultiBoot};
 use core::arch::asm;
 use core::panic::PanicInfo;
@@ -74,13 +76,16 @@ pub extern "C" fn kernel_main(multiboot_start: usize) {
         MULTIBOOT.start_address, MULTIBOOT.end_address
     );
 
-    let mut _frame_allocator = memory::frame::AreaFrameAllocator::new(
+    let mut frame_allocator = memory::frame::AreaFrameAllocator::new(
         kernel_start as usize,
         kernel_end as usize,
         MULTIBOOT.start_address,
         MULTIBOOT.end_address,
         &MULTIBOOT.memory_areas(),
     );
+
+    let mut active_table = remap_the_kernel(&mut frame_allocator);
+    println!("Kernel remapped! Whatever that means.");
 
     interrupts::init();
     hlt_loop()

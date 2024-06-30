@@ -1,6 +1,8 @@
 mod idt;
 mod pic;
 
+pub use self::idt::DescriptorTablePointer;
+
 use self::idt::InterruptDescriptorTable;
 use self::pic::ChainedPics;
 use crate::keyboard::{layouts, scancodes, Keyboard};

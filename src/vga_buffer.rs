@@ -76,7 +76,7 @@ fn hide_cursor() {
     update_cursor(VGA_HEIGHT + 1, 0);
 }
 
-const VGA_ADDRESS: usize = 0xb8000;
+pub const VGA_ADDRESS: usize = 0xb8000;
 pub const VGA_WIDTH: usize = 80;
 pub const VGA_HEIGHT: usize = 25;
 pub const VGA_HISTORY: usize = 200; // TODO: assert!(VGA_HISTORY >= VGA_HEIGHT)
