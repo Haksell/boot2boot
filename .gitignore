@@ -3,3 +3,4 @@ target
 source_dir
 source.tar.gz
 rust_analyzer
+rustc-ice*.txt

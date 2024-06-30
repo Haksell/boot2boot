@@ -1,4 +1,4 @@
-use crate::memory::frame::Frame;
+use crate::memory::Frame;
 
 pub struct Entry(usize);
 

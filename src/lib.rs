@@ -1,75 +1,69 @@
 #![no_std]
-#![feature(abi_x86_interrupt, exclusive_range_pattern)]
+#![feature(
+    abi_x86_interrupt,
+    exclusive_range_pattern,
+    ptr_metadata,
+    ptr_internals
+)]
+
+#[macro_use]
+mod vga_buffer;
 
 mod interrupts;
 mod keyboard;
 mod memory;
+mod multiboot;
 mod port;
 mod shell;
-mod vga_buffer;
 
 #[macro_use]
 extern crate bitflags;
-extern crate multiboot2;
 
-use crate::memory::frame::FrameAllocator;
+use crate::multiboot::{ElfSectionFlags, MultiBoot};
 use core::arch::asm;
 use core::panic::PanicInfo;
+use core::sync::atomic::{AtomicUsize, Ordering};
+use lazy_static::lazy_static;
 
-use multiboot2::{BootInformationHeader, ElfSectionFlags};
+lazy_static! {
+    static ref MULTIBOOT: MultiBoot =
+        unsafe { MultiBoot::load(MULTIBOOT_START.load(Ordering::SeqCst)) };
+}
+
+static MULTIBOOT_START: AtomicUsize = AtomicUsize::new(0);
 
 #[no_mangle]
-pub extern "C" fn kernel_main(multiboot_header_address: usize) {
-    let boot_info = unsafe {
-        multiboot2::BootInformation::load(multiboot_header_address as *const BootInformationHeader)
-            .unwrap()
-    };
-
-    let our_boot_info = unsafe { memory::multiboot::load(multiboot_header_address) };
-
-    let memory_map_tag = our_boot_info
-        .memory_map_tag()
-        .expect("Memory map tag required");
-    let elf_sections_tag = boot_info.elf_sections().expect("Elf-sections tag required");
+pub extern "C" fn kernel_main(multiboot_start: usize) {
+    MULTIBOOT_START.store(multiboot_start, Ordering::SeqCst);
 
     vga_buffer::WRITER.lock().clear_vga_buffer();
     shell::SHELL.lock().init();
 
     println!("Memory areas:");
-    for area in memory_map_tag.memory_areas() {
+    for area in MULTIBOOT.memory_areas() {
         println!(
             "     start: 0x{:x}, length: 0x{:x}",
-            area.base_addr, area.length
+            area.start_address, area.size
         );
     }
 
-    println!("kernel sections:");
-    for section in elf_sections_tag {
-        if section.flags() != ElfSectionFlags::empty() {
-            println!(
-                "    addr: 0x{:x}, size: 0x{:x}, flags: 0x{:x}",
-                section.start_address(),
-                section.size(),
-                section.flags()
-            );
-        }
+    for section in MULTIBOOT.elf_sections() {
+        println!("{section:?}");
     }
 
-    let kernel_start = boot_info
+    let kernel_start = MULTIBOOT
         .elf_sections()
-        .unwrap()
+        .filter(|s| s.is_allocated())
         .map(|s| s.start_address())
         .min()
         .unwrap();
 
-    let kernel_end = boot_info
+    let kernel_end = MULTIBOOT
         .elf_sections()
-        .unwrap()
-        .map(|s| s.start_address() + s.size())
+        .filter(|s| s.is_allocated())
+        .map(|s| s.end_address())
         .max()
         .unwrap();
-
-    let multiboot_end = multiboot_header_address + boot_info.total_size();
 
     println!(
         "kernel_start: {:#x}, kernel_end: {:#x}",
@@ -77,26 +71,17 @@ pub extern "C" fn kernel_main(multiboot_header_address: usize) {
     );
     println!(
         "multiboot_start: {:#x}, multiboot_end: {:#x}",
-        multiboot_header_address, multiboot_end
+        MULTIBOOT.start_address, MULTIBOOT.end_address
     );
 
-    let mut frame_allocator = memory::frame::AreaFrameAllocator::new(
+    let mut _frame_allocator = memory::frame::AreaFrameAllocator::new(
         kernel_start as usize,
         kernel_end as usize,
-        multiboot_header_address,
-        multiboot_end,
-        memory_map_tag.memory_areas(),
+        MULTIBOOT.start_address,
+        MULTIBOOT.end_address,
+        &MULTIBOOT.memory_areas(),
     );
 
-    for i in 0..10 {
-        match frame_allocator.allocate_frame() {
-            None => {
-                println!("allocated {} frames", i);
-                break;
-            }
-            Some(frame) => println!("{:?}", frame),
-        }
-    }
     interrupts::init();
     hlt_loop()
 }
